@@ -20,7 +20,6 @@ PIDFILE="$STATE_DIR/${SESSION_ID}.watcher.pid"
 echo $$ > "$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
-STUCK_SEC="${CLAUDE_TAB_STUCK_SEC:-90}"
 POLL_SEC="${CLAUDE_TAB_POLL_SEC:-1}"
 
 find_session_file() {
@@ -58,16 +57,15 @@ LAST_KEY=""
 while [ -f "$SESSION_FILE" ]; do
   # Parse fields with jq if available, else fallback grep.
   if command -v jq >/dev/null 2>&1; then
-    DATA=$(jq -r '[.status // "idle", .name // "", .cwd // "", .updatedAt // 0] | @tsv' < "$SESSION_FILE" 2>/dev/null)
+    DATA=$(jq -r '[.status // "idle", .name // "", .cwd // ""] | @tsv' < "$SESSION_FILE" 2>/dev/null)
   else
-    DATA=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print("\t".join([d.get("status","idle"),d.get("name","") or "",d.get("cwd","") or "",str(d.get("updatedAt",0))]))' "$SESSION_FILE" 2>/dev/null)
+    DATA=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print("\t".join([d.get("status","idle"),d.get("name","") or "",d.get("cwd","") or ""]))' "$SESSION_FILE" 2>/dev/null)
   fi
   [ -z "$DATA" ] && { sleep "$POLL_SEC"; continue; }
 
   STATUS=$(printf '%s' "$DATA" | awk -F '\t' '{print $1}')
   NAME=$(printf '%s' "$DATA" | awk -F '\t' '{print $2}')
   CWD=$(printf '%s' "$DATA" | awk -F '\t' '{print $3}')
-  UPDATED_MS=$(printf '%s' "$DATA" | awk -F '\t' '{print $4}')
 
   if [ -z "$NAME" ]; then
     LABEL="claude: $(basename "$CWD")"
@@ -75,20 +73,11 @@ while [ -f "$SESSION_FILE" ]; do
     LABEL="claude: $NAME"
   fi
 
-  NOW_MS=$(($(date +%s) * 1000))
-  AGE_SEC=$(( (NOW_MS - UPDATED_MS) / 1000 ))
-
   case "$STATUS" in
     idle)    R=0;   G=200; B=0   ;;  # green
     waiting) R=0;   G=120; B=220 ;;  # blue
-    busy)
-      if [ "$AGE_SEC" -gt "$STUCK_SEC" ]; then
-        R=220; G=40;  B=40       # red (stuck)
-      else
-        R=220; G=190; B=0        # yellow
-      fi
-      ;;
-    *) R=128; G=128; B=128 ;;        # grey unknown
+    busy)    R=220; G=190; B=0   ;;  # yellow
+    *)       R=128; G=128; B=128 ;;  # grey unknown
   esac
 
   KEY="$R:$G:$B:$LABEL"

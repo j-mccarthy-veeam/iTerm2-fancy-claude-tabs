@@ -8,7 +8,6 @@ title to the name you give the session with `/rename` (or `claude -n <name>`).
 | 🟢 Green | `idle`     | Ready — waiting for your next prompt |
 | 🟡 Yellow | `busy`    | Claude is thinking / running tools |
 | 🔵 Blue  | `waiting`  | Claude needs input (permission prompt, plan approval, etc.) |
-| 🔴 Red   | `busy` + stalled >90s | Looks stuck |
 
 Tab title is `claude: <name>` (from `-n` or `/rename`), falling back to the
 project directory name.
@@ -63,7 +62,6 @@ Override via env vars (set in your shell before launching Claude):
 
 | Env var | Default | Description |
 |---|---|---|
-| `CLAUDE_TAB_STUCK_SEC` | `90` | Seconds of `busy` with no `updatedAt` change before going red |
 | `CLAUDE_TAB_POLL_SEC`  | `1`  | Session-file poll interval |
 
 ## Uninstall
