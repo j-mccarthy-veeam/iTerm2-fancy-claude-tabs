@@ -74,10 +74,11 @@ while [ -f "$SESSION_FILE" ]; do
   fi
 
   case "$STATUS" in
-    idle)    R=0;   G=200; B=0   ;;  # green
-    waiting) R=0;   G=120; B=220 ;;  # blue
-    busy)    R=220; G=190; B=0   ;;  # yellow
-    *)       R=128; G=128; B=128 ;;  # grey unknown
+    idle)               R=0;   G=200; B=0   ;;  # green
+    waiting)            R=0;   G=120; B=220 ;;  # blue
+    busy)               R=220; G=190; B=0   ;;  # yellow
+    waiting_for_input)  R=160; G=32;  B=240 ;;  # purple — waiting on external system
+    *)                  R=128; G=128; B=128 ;;  # grey unknown
   esac
 
   KEY="$R:$G:$B:$LABEL"
