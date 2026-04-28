@@ -18,8 +18,10 @@ fi
 
 mkdir -p "$BIN_DIR" "$STATE_DIR"
 
-install -m 0755 "$REPO_ROOT/bin/claude-tab-updater.sh" "$BIN_DIR/claude-tab-updater.sh"
-install -m 0755 "$REPO_ROOT/bin/claude-tab-end.sh"     "$BIN_DIR/claude-tab-end.sh"
+install -m 0755 "$REPO_ROOT/bin/claude-tab-updater.sh"    "$BIN_DIR/claude-tab-updater.sh"
+install -m 0755 "$REPO_ROOT/bin/claude-tab-end.sh"        "$BIN_DIR/claude-tab-end.sh"
+install -m 0755 "$REPO_ROOT/bin/claude-tab-wait-set.sh"   "$BIN_DIR/claude-tab-wait-set.sh"
+install -m 0755 "$REPO_ROOT/bin/claude-tab-wait-clear.sh" "$BIN_DIR/claude-tab-wait-clear.sh"
 echo "installed scripts to $BIN_DIR/"
 
 if [ ! -f "$SETTINGS" ]; then
@@ -30,11 +32,15 @@ cp "$SETTINGS" "$SETTINGS.bak.$(date +%s)"
 
 SESSION_START_CMD="bash -c 'INPUT=\$(cat); SID=\$(printf \"%s\" \"\$INPUT\" | jq -r .session_id 2>/dev/null); [ -z \"\$SID\" ] && exit 0; TTY=\$(ps -o tty= -p \$PPID 2>/dev/null | tr -d \" \"); [ -z \"\$TTY\" ] || [ \"\$TTY\" = \"??\" ] && exit 0; nohup bash $BIN_DIR/claude-tab-updater.sh \"\$SID\" \"/dev/\$TTY\" >/dev/null 2>&1 & disown'"
 SESSION_END_CMD="bash $BIN_DIR/claude-tab-end.sh"
+WAIT_SET_CMD="bash $BIN_DIR/claude-tab-wait-set.sh"
+WAIT_CLEAR_CMD="bash $BIN_DIR/claude-tab-wait-clear.sh"
 
 TMP="$(mktemp)"
 jq \
-  --arg start_cmd "$SESSION_START_CMD" \
-  --arg end_cmd   "$SESSION_END_CMD" '
+  --arg start_cmd      "$SESSION_START_CMD" \
+  --arg end_cmd        "$SESSION_END_CMD" \
+  --arg wait_set_cmd   "$WAIT_SET_CMD" \
+  --arg wait_clear_cmd "$WAIT_CLEAR_CMD" '
   .hooks //= {}
   | .hooks.SessionStart = (
       ((.hooks.SessionStart // []) | map(select(
@@ -48,6 +54,20 @@ jq \
         (.hooks // []) | all(.command != $end_cmd)
       ))) + [{
         "hooks": [{"type":"command","command":$end_cmd}]
+      }]
+    )
+  | .hooks.Stop = (
+      ((.hooks.Stop // []) | map(select(
+        (.hooks // []) | all(.command != $wait_set_cmd)
+      ))) + [{
+        "hooks": [{"type":"command","command":$wait_set_cmd}]
+      }]
+    )
+  | .hooks.UserPromptSubmit = (
+      ((.hooks.UserPromptSubmit // []) | map(select(
+        (.hooks // []) | all(.command != $wait_clear_cmd)
+      ))) + [{
+        "hooks": [{"type":"command","command":$wait_clear_cmd}]
       }]
     )
 ' "$SETTINGS" > "$TMP"

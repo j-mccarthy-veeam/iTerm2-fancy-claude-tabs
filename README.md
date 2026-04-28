@@ -8,7 +8,7 @@ title to the name you give the session with `/rename` (or `claude -n <name>`).
 | 🟢 Green | `idle`     | Ready — waiting for your next prompt |
 | 🟡 Yellow | `busy`    | Claude is thinking / running tools |
 | 🔵 Blue  | `waiting`  | Claude needs input (permission prompt, plan approval, etc.) |
-| 🟣 Purple | `idle` + sentinel file | Waiting on an external system (CI, code review, etc.) — see [Waiting on an external system](#waiting-on-an-external-system-purple-tab) |
+| 🟣 Purple | `idle` + sentinel file | Claude finished its last turn — may be waiting on an external system (CI, code review, etc.) or your next message |
 
 Tab title is `claude: <name>` (from `-n` or `/rename`), falling back to the
 project directory name.
@@ -16,12 +16,18 @@ project directory name.
 ## How it works
 
 Claude Code writes its live session state (status, name, cwd, updatedAt) to
-`~/.claude/sessions/<pid>.json`. We install two hooks:
+`~/.claude/sessions/<pid>.json`. We install four hooks:
 
 - `SessionStart` — spawns a tiny background watcher (`bin/claude-tab-updater.sh`)
   that polls the session file once per second and emits iTerm2 OSC 0 (title)
   and OSC 6 (tab color) escapes to the session's controlling TTY.
-- `SessionEnd` — `bin/claude-tab-end.sh` kills the watcher and resets the tab.
+- `SessionEnd` — `bin/claude-tab-end.sh` kills the watcher, resets the tab,
+  and cleans up any leftover state files.
+- `Stop` — `bin/claude-tab-wait-set.sh` touches a sentinel file whenever
+  Claude finishes responding, causing the tab to turn purple automatically.
+- `UserPromptSubmit` — `bin/claude-tab-wait-clear.sh` removes the sentinel
+  file whenever you send a new prompt, returning the tab to the normal
+  green → yellow → purple cycle.
 
 No slash-command hook is needed for `/rename`: the new name lands in the
 session file on disk, and the watcher picks it up on its next poll (~1s).
@@ -43,8 +49,9 @@ cd iTerm2-fancy-claude-tabs
 The installer:
 
 1. Copies the scripts to `~/.claude/bin/`.
-2. Backs up `~/.claude/settings.json` and adds `SessionStart` + `SessionEnd`
-   hook entries (merges — existing hooks are preserved).
+2. Backs up `~/.claude/settings.json` and adds `SessionStart`, `SessionEnd`,
+   `Stop`, and `UserPromptSubmit` hook entries (merges — existing hooks are
+   preserved).
 3. Is idempotent — safe to re-run after pulling updates.
 
 Open a fresh iTerm2 tab and run:
@@ -65,44 +72,33 @@ Override via env vars (set in your shell before launching Claude):
 |---|---|---|
 | `CLAUDE_TAB_POLL_SEC`  | `1`  | Session-file poll interval |
 
-## Waiting on an external system (purple tab)
+## Purple tab — Claude finished and is waiting
 
-Claude Code reports `idle` status whenever it is paused — whether genuinely
-waiting for your next prompt or sitting idle while you wait for a CI run or an
-AI code review to complete. Because there is no built-in status to distinguish
-the two, the watcher uses a **sentinel file** as an out-of-band signal.
+After every response Claude gives, the `Stop` hook automatically touches a
+sentinel file and the watcher turns the tab **purple** within ~1 s. When you
+send your next prompt the `UserPromptSubmit` hook removes the file and the tab
+returns to **green** before Claude picks up the turn.
 
-While Claude is waiting on something external, touch the file for that session:
+No manual action is required. The color cycle is:
 
-```bash
-# turn the tab purple  (replace <SID> with the actual session id)
-touch ~/.claude/state/<SID>.waiting_external
+```
+green (ready) → yellow (busy) → purple (done / waiting) → green → …
 ```
 
-When the external task finishes and you're ready to continue, remove the file:
+Purple means Claude has finished its last turn and is idle — whether you are
+about to type a follow-up or waiting for an external system (CI, code review,
+etc.) to finish before continuing.
 
-```bash
-rm ~/.claude/state/<SID>.waiting_external
-```
-
-The tab reverts to green on the next poll (~1 s).
-
-**Tip — helper aliases** — add something like this to your shell profile so you
-can quickly toggle the state for the current session:
-
-```bash
-# Usage: claude-wait <session-id>  /  claude-resume <session-id>
-alias claude-wait='f(){ touch "$HOME/.claude/state/$1.waiting_external"; }; f'
-alias claude-resume='f(){ rm -f "$HOME/.claude/state/$1.waiting_external"; }; f'
-```
-
-The session id is printed by `claude --version` or visible in the session file
-name under `~/.claude/sessions/`.
+If you need to override the state manually (e.g. to keep the tab purple even
+after sending a message), the underlying sentinel file is
+`~/.claude/state/<session_id>.waiting_external`. Touch it to force purple;
+remove it to force green.
 
 ## Uninstall
 
-Remove the `SessionStart` / `SessionEnd` entries added by the installer from
-`~/.claude/settings.json` and delete `~/.claude/bin/claude-tab-*.sh`.
+Remove the `SessionStart`, `SessionEnd`, `Stop`, and `UserPromptSubmit` entries
+added by the installer from `~/.claude/settings.json` and delete
+`~/.claude/bin/claude-tab-*.sh`.
 
 ## Non-iTerm2 terminals
 
