@@ -8,7 +8,7 @@ title to the name you give the session with `/rename` (or `claude -n <name>`).
 | 🟢 Green | `idle`     | Ready — waiting for your next prompt |
 | 🟡 Yellow | `busy`    | Claude is thinking / running tools |
 | 🔵 Blue  | `waiting`  | Claude needs input (permission prompt, plan approval, etc.) |
-| 🟣 Purple | `waiting_for_input` | Waiting on an external system (e.g. AI code review, CI check) |
+| 🟣 Purple | `idle` + sentinel file | Waiting on an external system (CI, code review, etc.) — see [Waiting on an external system](#waiting-on-an-external-system-purple-tab) |
 
 Tab title is `claude: <name>` (from `-n` or `/rename`), falling back to the
 project directory name.
@@ -64,6 +64,40 @@ Override via env vars (set in your shell before launching Claude):
 | Env var | Default | Description |
 |---|---|---|
 | `CLAUDE_TAB_POLL_SEC`  | `1`  | Session-file poll interval |
+
+## Waiting on an external system (purple tab)
+
+Claude Code reports `idle` status whenever it is paused — whether genuinely
+waiting for your next prompt or sitting idle while you wait for a CI run or an
+AI code review to complete. Because there is no built-in status to distinguish
+the two, the watcher uses a **sentinel file** as an out-of-band signal.
+
+While Claude is waiting on something external, touch the file for that session:
+
+```bash
+# turn the tab purple  (replace <SID> with the actual session id)
+touch ~/.claude/state/<SID>.waiting_external
+```
+
+When the external task finishes and you're ready to continue, remove the file:
+
+```bash
+rm ~/.claude/state/<SID>.waiting_external
+```
+
+The tab reverts to green on the next poll (~1 s).
+
+**Tip — helper aliases** — add something like this to your shell profile so you
+can quickly toggle the state for the current session:
+
+```bash
+# Usage: claude-wait <session-id>  /  claude-resume <session-id>
+alias claude-wait='f(){ touch "$HOME/.claude/state/$1.waiting_external"; }; f'
+alias claude-resume='f(){ rm -f "$HOME/.claude/state/$1.waiting_external"; }; f'
+```
+
+The session id is printed by `claude --version` or visible in the session file
+name under `~/.claude/sessions/`.
 
 ## Uninstall
 

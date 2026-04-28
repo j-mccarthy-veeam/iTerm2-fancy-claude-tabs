@@ -17,6 +17,7 @@ STATE_DIR="$HOME/.claude/state"
 mkdir -p "$STATE_DIR"
 
 PIDFILE="$STATE_DIR/${SESSION_ID}.watcher.pid"
+WAITFILE="$STATE_DIR/${SESSION_ID}.waiting_external"
 echo $$ > "$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
@@ -74,12 +75,18 @@ while [ -f "$SESSION_FILE" ]; do
   fi
 
   case "$STATUS" in
-    idle)               R=0;   G=200; B=0   ;;  # green
-    waiting)            R=0;   G=120; B=220 ;;  # blue
-    busy)               R=220; G=190; B=0   ;;  # yellow
-    waiting_for_input)  R=160; G=32;  B=240 ;;  # purple — waiting on external system
-    *)                  R=128; G=128; B=128 ;;  # grey unknown
+    idle)    R=0;   G=200; B=0   ;;  # green
+    waiting) R=0;   G=120; B=220 ;;  # blue
+    busy)    R=220; G=190; B=0   ;;  # yellow
+    *)       R=128; G=128; B=128 ;;  # grey unknown
   esac
+
+  # Override to purple when a sentinel file signals external-system wait.
+  # Claude reports "idle" while waiting on external things (CI, code review, etc.),
+  # so we need an out-of-band signal.  Touch the file to set; remove it to clear.
+  if [ "$STATUS" = "idle" ] && [ -f "$WAITFILE" ]; then
+    R=160; G=32; B=240  # purple
+  fi
 
   KEY="$R:$G:$B:$LABEL"
   if [ "$KEY" != "$LAST_KEY" ]; then
