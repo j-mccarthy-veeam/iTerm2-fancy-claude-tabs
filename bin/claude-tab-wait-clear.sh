@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
-# claude-tab-wait-clear.sh — UserPromptSubmit hook. Clears the idle/waiting
-# sentinel when the user sends a new prompt so the tab returns to normal.
+# claude-tab-wait-clear.sh — clear the external-wait sentinel so the tab
+# returns to its normal status-driven color (green/yellow/blue).
 #
-# Claude Code calls this (via stdin JSON) whenever the user submits a prompt.
-# Removing the sentinel lets the updater script show green (idle) before Claude
-# picks up the turn, then yellow once Claude starts working.
+# Usage:
+#   claude-tab-wait-clear.sh               # auto-detect session_id from parent pid
+#   claude-tab-wait-clear.sh <session_id>  # explicit session_id
 set -u
 
-INPUT=$(cat 2>/dev/null || true)
+STATE_DIR="$HOME/.claude/state"
+SESSIONS_DIR="$HOME/.claude/sessions"
 
-if command -v jq >/dev/null 2>&1; then
-  SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
-else
-  SESSION_ID=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("session_id",""))' 2>/dev/null)
+SESSION_ID="${1:-}"
+
+# Auto-detect: pick the most recently updated session file. The currently
+# active session updates its file each second (status, updatedAt), so it wins
+# `ls -t`. ps-based pid-walking is unreliable under Claude Code's sandbox.
+if [ -z "$SESSION_ID" ] && command -v jq >/dev/null 2>&1; then
+  latest=$(ls -t "$SESSIONS_DIR"/*.json 2>/dev/null | head -1)
+  [ -n "$latest" ] && SESSION_ID=$(jq -r '.sessionId // empty' "$latest" 2>/dev/null)
 fi
 
-[ -z "$SESSION_ID" ] && exit 0
+if [ -z "$SESSION_ID" ]; then
+  echo "claude-tab-wait-clear: could not determine session_id" >&2
+  exit 1
+fi
 
-STATE_DIR="$HOME/.claude/state"
 rm -f "$STATE_DIR/${SESSION_ID}.waiting_external"

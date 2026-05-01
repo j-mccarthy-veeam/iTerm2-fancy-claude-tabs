@@ -81,10 +81,10 @@ while [ -f "$SESSION_FILE" ]; do
     *)       R=128; G=128; B=128 ;;  # grey unknown
   esac
 
-  # Override to purple when a sentinel file signals external-system wait.
-  # Claude reports "idle" while waiting on external things (CI, code review, etc.),
-  # so we need an out-of-band signal.  Touch the file to set; remove it to clear.
-  if [ "$STATUS" = "idle" ] && [ -f "$WAITFILE" ]; then
+  # Sentinel signals an external-system wait (CI, deploy, AI review polling).
+  # Override to purple regardless of busy/idle so polling loops stay purple.
+  # Skip when status="waiting" — permission prompts must remain blue.
+  if [ -f "$WAITFILE" ] && [ "$STATUS" != "waiting" ]; then
     R=160; G=32; B=240  # purple
   fi
 

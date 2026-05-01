@@ -1,23 +1,33 @@
 #!/usr/bin/env bash
-# claude-tab-wait-set.sh — Stop hook. Marks the session as idle/waiting so the
-# tab turns purple on the next updater poll.
+# claude-tab-wait-set.sh — turn the iTerm2 tab purple to signal Claude is
+# waiting on an external system (CI build, deployment, AI review, etc.).
 #
-# Claude Code calls this (via stdin JSON) whenever it finishes responding.
-# The updater script reads the sentinel and overrides the color to purple while
-# the session is idle, giving a visual cue that Claude is done and may be
-# waiting for you or an external system (CI, code review, etc.).
+# Usage:
+#   claude-tab-wait-set.sh                 # auto-detect session_id from parent pid
+#   claude-tab-wait-set.sh <session_id>    # explicit session_id
+#
+# The watcher (claude-tab-updater.sh) polls the sentinel file each second and
+# overrides the tab color to purple whenever it exists. Pair with
+# claude-tab-wait-clear.sh once the wait finishes.
 set -u
 
-INPUT=$(cat 2>/dev/null || true)
+STATE_DIR="$HOME/.claude/state"
+SESSIONS_DIR="$HOME/.claude/sessions"
 
-if command -v jq >/dev/null 2>&1; then
-  SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
-else
-  SESSION_ID=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("session_id",""))' 2>/dev/null)
+SESSION_ID="${1:-}"
+
+# Auto-detect: pick the most recently updated session file. The currently
+# active session updates its file each second (status, updatedAt), so it wins
+# `ls -t`. ps-based pid-walking is unreliable under Claude Code's sandbox.
+if [ -z "$SESSION_ID" ] && command -v jq >/dev/null 2>&1; then
+  latest=$(ls -t "$SESSIONS_DIR"/*.json 2>/dev/null | head -1)
+  [ -n "$latest" ] && SESSION_ID=$(jq -r '.sessionId // empty' "$latest" 2>/dev/null)
 fi
 
-[ -z "$SESSION_ID" ] && exit 0
+if [ -z "$SESSION_ID" ]; then
+  echo "claude-tab-wait-set: could not determine session_id" >&2
+  exit 1
+fi
 
-STATE_DIR="$HOME/.claude/state"
 mkdir -p "$STATE_DIR"
 touch "$STATE_DIR/${SESSION_ID}.waiting_external"
