@@ -23,6 +23,12 @@ trap 'rm -f "$PIDFILE"' EXIT
 
 POLL_SEC="${CLAUDE_TAB_POLL_SEC:-1}"
 
+# Self-reload: if the script on disk is replaced (e.g. by install.sh), re-exec
+# so long-lived watchers pick up the new code instead of running stale logic
+# from when bash first sourced the file.
+SCRIPT_PATH="$0"
+SELF_MTIME=$(stat -f %m "$SCRIPT_PATH" 2>/dev/null || stat -c %Y "$SCRIPT_PATH" 2>/dev/null || echo 0)
+
 find_session_file() {
   for f in "$SESSIONS_DIR"/*.json; do
     [ -e "$f" ] || continue
@@ -95,4 +101,9 @@ while [ -f "$SESSION_FILE" ]; do
   fi
 
   sleep "$POLL_SEC"
+
+  CUR_MTIME=$(stat -f %m "$SCRIPT_PATH" 2>/dev/null || stat -c %Y "$SCRIPT_PATH" 2>/dev/null || echo 0)
+  if [ "$CUR_MTIME" != "$SELF_MTIME" ] && [ "$CUR_MTIME" != 0 ]; then
+    exec "$SCRIPT_PATH" "$SESSION_ID" "$TTY"
+  fi
 done
