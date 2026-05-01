@@ -17,6 +17,7 @@ STATE_DIR="$HOME/.claude/state"
 mkdir -p "$STATE_DIR"
 
 PIDFILE="$STATE_DIR/${SESSION_ID}.watcher.pid"
+WAITFILE="$STATE_DIR/${SESSION_ID}.waiting_external"
 echo $$ > "$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
@@ -79,6 +80,13 @@ while [ -f "$SESSION_FILE" ]; do
     busy)    R=220; G=190; B=0   ;;  # yellow
     *)       R=128; G=128; B=128 ;;  # grey unknown
   esac
+
+  # Sentinel signals an external-system wait (CI, deploy, AI review polling).
+  # Override to purple regardless of busy/idle so polling loops stay purple.
+  # Skip when status="waiting" — permission prompts must remain blue.
+  if [ -f "$WAITFILE" ] && [ "$STATUS" != "waiting" ]; then
+    R=160; G=32; B=240  # purple
+  fi
 
   KEY="$R:$G:$B:$LABEL"
   if [ "$KEY" != "$LAST_KEY" ]; then
