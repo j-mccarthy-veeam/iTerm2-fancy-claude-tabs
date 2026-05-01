@@ -27,6 +27,20 @@ install -m 0755 "$REPO_ROOT/bin/claude-tab-wait-set.sh"   "$BIN_DIR/claude-tab-w
 install -m 0755 "$REPO_ROOT/bin/claude-tab-wait-clear.sh" "$BIN_DIR/claude-tab-wait-clear.sh"
 echo "installed scripts to $BIN_DIR/"
 
+# Watchers from before self-reload landed hold the old script in memory and
+# keep running stale logic (e.g. the removed "stuck" red branch). Kill them so
+# the next SessionStart respawns with current code. Watchers installed after
+# this version self-reload via exec when the script file changes.
+for pidfile in "$STATE_DIR"/*.watcher.pid; do
+  [ -e "$pidfile" ] || continue
+  pid=$(cat "$pidfile" 2>/dev/null) || continue
+  [ -z "$pid" ] && continue
+  if kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null && echo "killed stale watcher pid=$pid"
+  fi
+  rm -f "$pidfile"
+done
+
 SKILL_SRC="$REPO_ROOT/skills/iterm-tab-external-wait"
 SKILL_DST="$SKILLS_DIR/iterm-tab-external-wait"
 if [ -d "$SKILL_SRC" ]; then
