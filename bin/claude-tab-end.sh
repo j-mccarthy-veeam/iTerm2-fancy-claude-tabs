@@ -18,8 +18,6 @@ if [ -f "$PIDFILE" ]; then
   rm -f "$PIDFILE"
 fi
 
-rm -f "$STATE_DIR/${SESSION_ID}.waiting_external"
-
 # Reset tab color + title on the parent Claude process's controlling TTY.
 TTY=$(ps -o tty= -p "$PPID" 2>/dev/null | tr -d ' ')
 if [ -n "$TTY" ] && [ "$TTY" != "??" ]; then
