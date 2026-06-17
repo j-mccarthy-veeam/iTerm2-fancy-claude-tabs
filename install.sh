@@ -23,9 +23,12 @@ install -m 0755 "$REPO_ROOT/bin/claude-tab-end.sh"     "$BIN_DIR/claude-tab-end.
 echo "installed scripts to $BIN_DIR/"
 
 # Upgrade cleanup: remove files from the old manual-purple sentinel mechanism.
-rm -f "$BIN_DIR/claude-tab-wait-set.sh" "$BIN_DIR/claude-tab-wait-clear.sh"
-rm -rf "${CLAUDE_DIR}/skills/iterm-tab-external-wait"
-rm -f "$STATE_DIR"/*.waiting_external
+rm -f "$BIN_DIR/claude-tab-wait-set.sh" "$BIN_DIR/claude-tab-wait-clear.sh" \
+  || echo "warning: could not remove old wait scripts (check permissions on $BIN_DIR)" >&2
+rm -rf "${CLAUDE_DIR}/skills/iterm-tab-external-wait" \
+  || echo "warning: could not remove old skill dir (check permissions on ${CLAUDE_DIR}/skills)" >&2
+rm -f "$STATE_DIR"/*.waiting_external \
+  || echo "warning: could not remove .waiting_external files in $STATE_DIR" >&2
 echo "removed old manual-purple files (if any)"
 
 # Watchers from before self-reload landed hold the old script in memory and
