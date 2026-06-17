@@ -73,9 +73,9 @@ jq \
         "hooks": [{"type":"command","command":$end_cmd}]
       }]
     )
-  | .hooks.Stop = ((.hooks.Stop // []) | map(select((.hooks // []) | all(.command | test("claude-tab-wait") | not))))
+  | .hooks.Stop = ((.hooks.Stop // []) | map(select((.hooks // []) | all((.command // "") | test("claude-tab-wait") | not))))
   | (if ((.hooks.Stop // []) | length) == 0 then del(.hooks.Stop) else . end)
-  | .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select((.hooks // []) | all(.command | test("claude-tab-wait") | not))))
+  | .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) | map(select((.hooks // []) | all((.command // "") | test("claude-tab-wait") | not))))
   | (if ((.hooks.UserPromptSubmit // []) | length) == 0 then del(.hooks.UserPromptSubmit) else . end)
 ' "$SETTINGS" > "$TMP"
 
