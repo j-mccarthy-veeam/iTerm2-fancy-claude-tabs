@@ -81,6 +81,8 @@ while [ -f "$SESSION_FILE" ]; do
 
   case "$STATUS" in
     idle)    R=0;   G=200; B=0   ;;  # green
+    # "shell" = Claude Code's internal status when a local_bash is still running.
+    # Undocumented upstream value — if it changes, purple silently breaks.
     shell)   R=160; G=32;  B=240 ;;  # purple — parked on a background shell
     waiting) R=0;   G=120; B=220 ;;  # blue
     busy)    R=220; G=190; B=0   ;;  # yellow
